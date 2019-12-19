@@ -1,5 +1,5 @@
 import numpy as np
-import cv2, os, random
+import cv2, random
 
 from os.path import join
 
@@ -44,33 +44,46 @@ class WiderFaceDataset:
         return result
 
     def load_image(self, image_path):
-        img = cv2.imread(join(self.data_dir, image_path))
-        return img / 255.
+        return cv2.imread(join(self.data_dir, image_path))
+
+    def preprocess(self, img, rois):
+        h, w, _ = img.shape
+        scale = min(1024 / h, 1024 / w)
+        img = cv2.resize(img, None, fx=scale, fy=scale)
+        rois = rois * scale
+
+        h, w, _ = img.shape
+        canvas = np.zeros((1024, 1024, 3))
+        canvas[:h, :w, :] = img
+
+        return canvas, rois.astype(np.int)
 
     def train_data(self):
         random.shuffle(self._train_ls)
         for image_name, data in self._train_ls:
             image_path = join("WIDER_train", "images", image_name)
             img = self.load_image(image_path)
-            roi = np.array(data)[:, :4].astype(np.float)
-            yield img, roi
+            rois = np.array(data)[:, :4]
+            yield self.preprocess(img, rois)
 
     def val_data(self):
         for image_name, data in self._val_ls:
             image_path = join("WIDER_val", "images", image_name)
             img = self.load_image(image_path)
-            roi = np.array(data)[:, :4].astype(np.float)
-            yield img, roi
+            rois = np.array(data)[:, :4]
+            yield self.preprocess(img, rois)
 
     def test_data(self):
         for image_name, data in self._test_ls:
             image_path = join("WIDER_test", "images", image_name)
-            img = self.load_image(image_path)
-            yield img
+            yield self.load_image(image_path)
 
 
 if __name__ == '__main__':
     dataset = WiderFaceDataset("/home/killf/data/数据集/wider_face")
-    for i in dataset.train_data():
-        pass
+    for img, rois in dataset.train_data():
+        for roi in rois:
+            cv2.rectangle(img, (roi[0], roi[1]), (roi[0] + roi[2], roi[1] + roi[3]), (255, 255, 0))
+        cv2.imwrite("0.jpg", img)
+
     print(dataset)
